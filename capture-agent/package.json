@@ -1,0 +1,20 @@
+{
+  "name": "threatwatch-capture-agent",
+  "version": "1.0.0",
+  "description": "Local network packet capture agent for ThreatWatch SOC",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": ["network", "security", "packet-capture"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "cap": "^0.2.1",
+    "dotenv": "^16.4.1",
+    "node-fetch": "^3.3.2"
+  }
+}

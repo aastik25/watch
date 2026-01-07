@@ -6,29 +6,56 @@ import PacketFeed from './components/PacketFeed';
 import ThreatFeed from './components/ThreatFeed';
 import TopThreats from './components/TopThreats';
 import ExportButton from './components/ExportButton';
-import { generatePacket, updateAnalytics } from './lib/packetSimulator';
+import { supabase } from './lib/supabase';
 
 function App() {
-  const [isActive, setIsActive] = useState(true);
   const [packetCount, setPacketCount] = useState(0);
+  const [captureAgentActive, setCaptureAgentActive] = useState(false);
 
   useEffect(() => {
-    if (!isActive) return;
+    loadPacketCount();
 
-    const generatePackets = async () => {
-      await generatePacket();
-      setPacketCount(prev => prev + 1);
-    };
+    const subscription = supabase
+      .channel('packet-counter')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'packets'
+      }, () => {
+        setPacketCount(prev => prev + 1);
+        setCaptureAgentActive(true);
+      })
+      .subscribe();
 
-    const packetInterval = setInterval(generatePackets, 2000);
-
-    const analyticsInterval = setInterval(updateAnalytics, 30000);
+    const activityCheck = setInterval(() => {
+      checkRecentActivity();
+    }, 10000);
 
     return () => {
-      clearInterval(packetInterval);
-      clearInterval(analyticsInterval);
+      subscription.unsubscribe();
+      clearInterval(activityCheck);
     };
-  }, [isActive]);
+  }, []);
+
+  const loadPacketCount = async () => {
+    const { count } = await supabase
+      .from('packets')
+      .select('*', { count: 'exact', head: true });
+
+    if (count !== null) setPacketCount(count);
+  };
+
+  const checkRecentActivity = async () => {
+    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+
+    const { data } = await supabase
+      .from('packets')
+      .select('id')
+      .gte('captured_at', tenSecondsAgo)
+      .limit(1);
+
+    setCaptureAgentActive(data && data.length > 0);
+  };
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -47,20 +74,13 @@ function App() {
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700">
-                <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+                <div className={`w-2 h-2 rounded-full ${captureAgentActive ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
                 <span className="text-sm text-gray-300 font-medium">
-                  {isActive ? 'LIVE MONITORING' : 'PAUSED'}
+                  {captureAgentActive ? 'CAPTURE AGENT ACTIVE' : 'WAITING FOR AGENT'}
                 </span>
               </div>
 
               <ExportButton />
-
-              <button
-                onClick={() => setIsActive(!isActive)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                {isActive ? 'Pause' : 'Resume'}
-              </button>
             </div>
           </div>
         </div>
